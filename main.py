@@ -4,6 +4,7 @@ Allows two human players to play in the terminal.
 """
 
 from src.game import Game
+from src.ai import MinimaxAI
 
 
 def get_move_input(n):
@@ -24,6 +25,9 @@ def main():
     n = int(input("Enter board size n (e.g. 3 for 3x3): "))
     k = int(input("Enter win length k (e.g. 3 for 3-in-a-row): "))
     game = Game(n, k)
+    ai = MinimaxAI()
+    human_player = "X"
+    ai_player = "O"
 
     while True:
         game.board.display()
@@ -31,10 +35,18 @@ def main():
         if game.is_terminal():
             break
 
-        row, col = get_move_input(n)
-        if not game.make_move(row, col):
-            print("Invalid move! Cell is already occupied or out of bounds.")
-            continue
+        if game.current_player == human_player:
+            row, col = get_move_input(n)
+            if not game.make_move(row, col):
+                print("Invalid move! Cell is already occupied or out of bounds.")
+                continue
+        else:
+            print("AI is thinking...")
+            move = ai.get_best_move(game, ai_player, human_player)
+            if move is not None:
+                row, col = move
+                game.make_move(row, col)
+                print(f"AI played at ({row}, {col})")
 
         if not game.is_terminal():
             game.switch_turn()

@@ -69,11 +69,18 @@ class Board:
 
     def display(self) -> None:
         """
-        Print the board in a readable CLI form.
+        Print the board in a readable CLI form with row and column headers.
         """
-        for row in self.grid:
-            print(" | ".join([cell if cell is not None else " " for cell in row]))
-            print("-" * (self.n * 4 - 1))
+        # Print column headers
+        col_headers = "   " + "   ".join(str(c) for c in range(self.n))
+        print(col_headers)
+        print("  " + "-" * (self.n * 4 - 1))
+        for r, row in enumerate(self.grid):
+            row_str = f"{r} " + " | ".join(
+                [cell if cell is not None else " " for cell in row]
+            )
+            print(row_str)
+            print("  " + "-" * (self.n * 4 - 1))
 
     def get_available_moves(self) -> List[Tuple[int, int]]:
         """
