@@ -5,6 +5,8 @@ Allows two human players to play in the terminal.
 
 from src.game import Game
 from src.ai import MinimaxAI
+# from src.board import Board
+# from src.features import FeatureExtractor
 
 
 def get_move_input(n):

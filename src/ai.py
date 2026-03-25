@@ -36,7 +36,9 @@ class MinimaxAI:
 
         # Prefer center, then corners, then edges
         n = game.board.n
-        moves = sorted(game.get_available_moves(), key=lambda m: self._move_priority(m, n))
+        moves = sorted(
+            game.get_available_moves(), key=lambda m: self._move_priority(m, n)
+        )
 
         for row, col in moves:
             game.board.make_move(row, col, ai_player)
@@ -96,7 +98,9 @@ class MinimaxAI:
         best_move = None
 
         n = game.board.n
-        moves = sorted(game.get_available_moves(), key=lambda m: self._move_priority(m, n))
+        moves = sorted(
+            game.get_available_moves(), key=lambda m: self._move_priority(m, n)
+        )
 
         for row, col in moves:
             game.board.make_move(row, col, ai_player)
@@ -108,7 +112,7 @@ class MinimaxAI:
                 best_score = score
                 best_move = (row, col)
         return best_move
-    
+
     def _minimax_ab(
         self,
         game: Game,
@@ -147,7 +151,9 @@ class MinimaxAI:
             max_eval = float("-inf")
             for row, col in game.get_available_moves():
                 game.board.make_move(row, col, ai_player)
-                eval = self._minimax_ab(game, depth + 1, alpha, beta, False, ai_player, human_player)
+                eval = self._minimax_ab(
+                    game, depth + 1, alpha, beta, False, ai_player, human_player
+                )
                 game.board.undo_move(row, col)
                 max_eval = max(max_eval, eval)
                 alpha = max(alpha, eval)
@@ -160,7 +166,9 @@ class MinimaxAI:
             min_eval = float("inf")
             for row, col in game.get_available_moves():
                 game.board.make_move(row, col, human_player)
-                eval = self._minimax_ab(game, depth + 1, alpha, beta, True, ai_player, human_player)
+                eval = self._minimax_ab(
+                    game, depth + 1, alpha, beta, True, ai_player, human_player
+                )
                 game.board.undo_move(row, col)
                 min_eval = min(min_eval, eval)
                 beta = min(beta, eval)
@@ -169,7 +177,7 @@ class MinimaxAI:
                     # so it will never choose this branch — prune remaining siblings.
                     break
             return min_eval
-        
+
     @staticmethod
     def _move_priority(move: tuple, n: int) -> int:
         row, col = move
