@@ -1,5 +1,5 @@
 from typing import Dict, List, Tuple
-from src.board import Board
+from board import Board
 
 
 class FeatureExtractor:
