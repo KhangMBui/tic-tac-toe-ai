@@ -5,8 +5,8 @@ import os
 import random
 from typing import Callable, Dict, List, Optional, Tuple
 
-from features import FeatureExtractor
-from game import Game
+from src.features import FeatureExtractor
+from src.game import Game
 
 # A move is represented as (row, col)
 Move = Tuple[int, int]

@@ -13,7 +13,7 @@ Handles turn management, win/draw detection, and terminal state checking.
 """
 
 from typing import Optional, Tuple, List
-from board import Board
+from src.board import Board
 
 
 class Game:
