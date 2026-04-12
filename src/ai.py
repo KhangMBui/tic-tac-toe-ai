@@ -178,6 +178,122 @@ class MinimaxAI:
                     break
             return min_eval
 
+    def get_best_move_heuristic(
+        self,
+        game: Game,
+        ai_player: str,
+        human_player: str,
+        max_depth: int = 4,
+    ):
+        """
+        Return the best move using depth-limited Alpha-Beta with heuristic cutoff.
+
+        When the search reaches max_depth without reaching a terminal state, the
+        board is scored with HeuristicEvaluator.evaluate() instead of searching
+        further. This bounds the search tree to a fixed number of plies and makes
+        the AI practical on larger boards where exhaustive search is infeasible.
+
+        Cutoff policy:
+          - On 3×3 boards the full tree is small; max_depth is effectively ignored
+            because terminal states are always reached before the cutoff.
+          - On 4×4+ boards max_depth caps the search. Recommended starting values:
+            depth 3–4 for 4×4, depth 2–3 for 5×5 and above.
+        """
+        from src.heuristics import HeuristicEvaluator
+
+        self.nodes_explored_h = 0
+        evaluator = HeuristicEvaluator()
+        best_score = float("-inf")
+        best_move = None
+
+        n = game.board.n
+        moves = sorted(
+            game.get_available_moves(), key=lambda m: self._move_priority(m, n)
+        )
+
+        for row, col in moves:
+            game.board.make_move(row, col, ai_player)
+            score = self._minimax_ab_h(
+                game, 1, max_depth,
+                float("-inf"), float("inf"),
+                False,
+                ai_player, human_player,
+                evaluator,
+            )
+            game.board.undo_move(row, col)
+            if score > best_score:
+                best_score = score
+                best_move = (row, col)
+        return best_move
+
+    def _minimax_ab_h(
+        self,
+        game: Game,
+        depth: int,
+        max_depth: int,
+        alpha: float,
+        beta: float,
+        is_maximizing: bool,
+        ai_player: str,
+        human_player: str,
+        evaluator,
+    ) -> float:
+        """
+        Alpha-Beta search with a heuristic at the depth cutoff.
+
+        Cutoff policy: once depth >= max_depth the board is scored by the
+        heuristic instead of exploring further. Terminal states (win / draw)
+        always take priority over the cutoff — their exact scores are returned
+        regardless of depth.
+
+        Terminal scores use ±10000 so they always dominate any heuristic value,
+        guaranteeing the AI never mistakes a heuristic estimate for an actual win.
+        Depth is subtracted/added so the AI prefers faster wins and slower losses.
+        """
+        self.nodes_explored_h += 1
+
+        # Terminal checks take priority over the depth cutoff.
+        winner = game.check_winner()
+        if winner == ai_player:
+            return 10000 - depth    # prefer faster wins
+        elif winner == human_player:
+            return depth - 10000    # prefer slower losses
+        elif game.is_draw():
+            return 0
+
+        # Depth cutoff: score with heuristic instead of searching deeper.
+        if depth >= max_depth:
+            return evaluator.evaluate(game.board, ai_player, human_player)
+
+        if is_maximizing:
+            max_eval = float("-inf")
+            for row, col in game.get_available_moves():
+                game.board.make_move(row, col, ai_player)
+                val = self._minimax_ab_h(
+                    game, depth + 1, max_depth, alpha, beta,
+                    False, ai_player, human_player, evaluator,
+                )
+                game.board.undo_move(row, col)
+                max_eval = max(max_eval, val)
+                alpha = max(alpha, val)
+                if beta <= alpha:
+                    break
+            return max_eval
+        else:
+            min_eval = float("inf")
+            for row, col in game.get_available_moves():
+                game.board.make_move(row, col, human_player)
+                val = self._minimax_ab_h(
+                    game, depth + 1, max_depth, alpha, beta,
+                    True, ai_player, human_player, evaluator,
+                )
+                game.board.undo_move(row, col)
+                min_eval = min(min_eval, val)
+                beta = min(beta, val)
+                if beta <= alpha:
+                    break
+            return min_eval
+
     @staticmethod
     def _move_priority(move: tuple, n: int) -> int:
         row, col = move
