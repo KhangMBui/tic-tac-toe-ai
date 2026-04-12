@@ -261,11 +261,33 @@ class FeatureExtractor:
         This method temporarily modifies board.grid, then restores it.
         That is safe here because the move is undone immediately after testing.
         """
-        threat_cells = 0
         n = board.n
         k = board.k
+
+        # On large boards this scan is O(n² × windows_per_cell) per heuristic
+        # call. Because the heuristic is called at every search-tree leaf, the
+        # cost multiplies with the number of nodes explored and becomes the
+        # dominant bottleneck. Two-way threats are also sparser and less
+        # discriminative on large boards, so skipping them is an acceptable
+        # trade-off beyond this threshold.
+        if n > 15:
+            return 0
+
         windows = self._enumerate_windows(n, k)
 
+        # Precompute cell → windows that contain it.
+        # The naive approach checks every window for every empty cell using
+        # `if (r, c) not in coords`, which is O(k) per check (list scan).
+        # Precomputing this map reduces each lookup to O(1) and eliminates
+        # scanning windows that cannot be affected by the candidate move.
+        cell_windows: Dict[Tuple[int, int], List] = {
+            (r, c): [] for r in range(n) for c in range(n)
+        }
+        for coords in windows:
+            for rc in coords:
+                cell_windows[rc].append(coords)
+
+        threat_cells = 0
         for r in range(n):
             for c in range(n):
                 # Skip occupied cells; only empty cells can be tested as candidate moves.
@@ -277,10 +299,7 @@ class FeatureExtractor:
                 immediate_wins_created = 0
 
                 # Only windows containing (r, c) can be affected by this move.
-                for coords in windows:
-                    if (r, c) not in coords:
-                        continue
-
+                for coords in cell_windows[(r, c)]:
                     player_count = 0
                     other_count = 0
                     empty_count = 0

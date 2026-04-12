@@ -9,49 +9,83 @@ from src.features import FeatureExtractor
 
 class HeuristicEvaluator:
     """
-    Data-driven, interpretable heuristic evaluation for n x n, k-in-a-row Tic-Tac-Toe.
-    The weights are chosen based on feature correlation with winning from your dataset.
+    Data-driven, interpretable heuristic evaluation for n×n, k-in-a-row Tic-Tac-Toe.
+
+    Weights are built dynamically per board so the heuristic generalizes to any (n, k):
+      - Open-line weights reference open_{k-2} rather than a hardcoded open_2.
+        For k=3 that is open_1; for k=5 that is open_3 (three-in-a-row), which is
+        far more strategically relevant than open_2 on a large board.
+      - Center control is dropped for n > 10, where the 2×2 center region represents
+        less than 0.16 % of the board and carries no meaningful strategic signal.
+      - Two-way-threat detection is skipped for n > 15 (handled in FeatureExtractor)
+        because the O(n²) scan per heuristic call becomes the search bottleneck.
+
+    Custom weights can still be passed to the constructor; they are used as-is and
+    bypass all dynamic adjustment.
     """
 
     def __init__(self, weights=None):
-        # Data-driven, interpretable weights based on Milestone 5 analysis.
-        # Rationale for each feature:
-        # - my_immediate_wins: Much higher in wins than losses. Strong positive.
-        # - opp_immediate_wins: Much higher in losses. Strong negative.
-        # - my_open_2: Higher in wins. Positive.
-        # - opp_open_2: Higher in losses. Negative.
-        # - my_two_way_threats: Higher in wins, but also high in losses. Mild positive.
-        # - opp_two_way_threats: Higher in losses, but also high in wins. Mild negative.
-        # - my_center_control: Higher in wins. Positive.
-        # - opp_center_control: Higher in losses. Negative.
-        #
-        # Features not included: open_lines, open_3, winning_windows, etc., as they were not as discriminative in your data.
-        self.weights = weights or {
-            # Terminal positions — someone already won
-            "my_winning_windows": 1000.0,   # Board already won by me
-            "opp_winning_windows": -1000.0,  # Board already won by opponent
-            # Immediate win/loss patterns
-            "my_immediate_wins": 2.0,  # Strong positive for immediate win
-            "opp_immediate_wins": -2.0,  # Strong negative for opponent's immediate win
-            # Open (k-1) lines
-            "my_open_2": 1.0,  # Positive for open lines close to winning
-            "opp_open_2": -1.0,  # Negative for opponent's open lines
-            # Two-way threats
-            "my_two_way_threats": 0.5,  # Mild positive (predictive but less discriminative)
-            "opp_two_way_threats": -1.0,  # Mild negative (higher in losses)
-            # Center control
-            "my_center_control": 1.0,  # Positive for controlling center
-            "opp_center_control": -1.0,  # Negative for opponent's center control
-        }
+        # None → build weights dynamically in evaluate() via _build_weights().
+        # Provided dict → use exactly as given (caller takes responsibility for k-scaling).
+        self._custom_weights = weights
         self.extractor = FeatureExtractor()
+
+    @staticmethod
+    def _build_weights(k: int, n: int) -> dict:
+        """
+        Return a weight dictionary tuned for the given board dimensions.
+
+        Design rationale (grounded in M5 feature-correlation data):
+          my_winning_windows  +1000 : terminal win — must dominate every other signal.
+          opp_winning_windows −1000 : terminal loss.
+          my_immediate_wins   +2.0  : k-1 marks + 1 empty; diff +0.52 in M5 data.
+          opp_immediate_wins  −2.0  : symmetric.
+          my_open_{k-2}       +1.0  : two marks short of a win — scales with k so
+                                      the feature always represents a meaningful
+                                      positional threat (open_3 for k=5, open_1 for k=3).
+          opp_open_{k-2}      −1.0  : symmetric.
+          my_two_way_threats  +0.5  : fork cells; positive but noisy (M5 diff +0.96
+                                      yet opponent forks also high in wins → conservative).
+          opp_two_way_threats −1.0  : more reliably negative per M5 data.
+          center control      ±1.0  : only on small boards (n ≤ 10); on larger boards
+                                      the 2×2 center is strategically negligible.
+        """
+        w = {
+            "my_winning_windows":   1000.0,
+            "opp_winning_windows": -1000.0,
+            "my_immediate_wins":      2.0,
+            "opp_immediate_wins":    -2.0,
+            "my_two_way_threats":     0.5,
+            "opp_two_way_threats":   -1.0,
+        }
+
+        # k-relative open-line weights.
+        # open_{k-2} is the longest partial line that is NOT yet an immediate win
+        # threat, making it the best single positional signal that scales with k.
+        # Skipped for k < 3 because k-2 < 1 has no corresponding feature.
+        if k >= 3:
+            w[f"my_open_{k - 2}"]  =  1.0
+            w[f"opp_open_{k - 2}"] = -1.0
+
+        # Center control only matters on small boards.
+        if n <= 10:
+            w["my_center_control"]  =  1.0
+            w["opp_center_control"] = -1.0
+
+        return w
 
     def evaluate(self, board, my_player, opponent_player):
         """
-        Returns a heuristic score for the given board and player.
-        Positive = good for 'player', negative = bad for 'player'
+        Return a heuristic score for the board from my_player's perspective.
+        Positive = good for my_player. Negative = good for opponent_player.
         """
         features = self.extractor.extract(board, my_player, opponent_player)
+        weights = (
+            self._custom_weights
+            if self._custom_weights is not None
+            else self._build_weights(board.k, board.n)
+        )
         score = 0.0
-        for feat, weight in self.weights.items():
+        for feat, weight in weights.items():
             score += weight * features.get(feat, 0)
         return score
