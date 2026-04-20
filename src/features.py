@@ -1,3 +1,4 @@
+from functools import lru_cache
 from typing import Dict, List, Tuple
 from src.board import Board
 
@@ -353,6 +354,7 @@ class FeatureExtractor:
         return [(a, a), (a, b), (b, a), (b, b)]
 
     @staticmethod
+    @lru_cache(maxsize=64)
     def _enumerate_windows(n: int, k: int) -> List[List[Tuple[int, int]]]:
         """
         Return every contiguous length-k window on the board.

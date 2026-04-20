@@ -207,9 +207,12 @@ class MinimaxAI:
         best_move = None
 
         n = game.board.n
-        moves = sorted(
-            game.get_available_moves(), key=lambda m: self._move_priority(m, n)
+        candidates = (
+            self._get_candidate_moves(game.board)
+            if n > 5
+            else game.get_available_moves()
         )
+        moves = sorted(candidates, key=lambda m: self._move_priority(m, n))
 
         for row, col in moves:
             game.board.make_move(row, col, ai_player)
@@ -265,9 +268,14 @@ class MinimaxAI:
         if depth >= max_depth:
             return evaluator.evaluate(game.board, ai_player, human_player)
 
+        moves = (
+            self._get_candidate_moves(game.board)
+            if game.board.n > 5
+            else game.get_available_moves()
+        )
         if is_maximizing:
             max_eval = float("-inf")
-            for row, col in game.get_available_moves():
+            for row, col in moves:
                 game.board.make_move(row, col, ai_player)
                 val = self._minimax_ab_h(
                     game, depth + 1, max_depth, alpha, beta,
@@ -281,7 +289,7 @@ class MinimaxAI:
             return max_eval
         else:
             min_eval = float("inf")
-            for row, col in game.get_available_moves():
+            for row, col in moves:
                 game.board.make_move(row, col, human_player)
                 val = self._minimax_ab_h(
                     game, depth + 1, max_depth, alpha, beta,
@@ -293,6 +301,48 @@ class MinimaxAI:
                 if beta <= alpha:
                     break
             return min_eval
+
+    @staticmethod
+    def _get_candidate_moves(board, radius: int = 2):
+        """
+        Return a focused set of candidate moves for large-board heuristic search.
+
+        Only considers empty cells within `radius` squares (Chebyshev distance)
+        of any occupied cell. On an empty board, returns just the center cell —
+        the universally strongest opening for any k-in-a-row game.
+
+        Why this is necessary for scale:
+          get_available_moves() returns up to n² candidates. On a 50×50 board
+          that is a branching factor of ~2,500 — depth=2 alone visits 6.25M
+          nodes. Restricting to radius=2 around existing pieces caps the
+          effective branching factor at ~20–50 in typical mid-game positions,
+          making depth=4 or 5 feasible on 50×50+ boards.
+
+        Cells far from any existing piece have no immediate strategic relevance
+        in k-in-a-row games; this is the standard approach in Gomoku AI.
+        Only applied when board.n > 5; smaller boards use all available moves.
+        """
+        n = board.n
+        occupied = [
+            (r, c)
+            for r in range(n)
+            for c in range(n)
+            if board.grid[r][c] is not None
+        ]
+
+        if not occupied:
+            mid = n // 2
+            return [(mid, mid)]
+
+        candidates = set()
+        for pr, pc in occupied:
+            for dr in range(-radius, radius + 1):
+                for dc in range(-radius, radius + 1):
+                    nr, nc = pr + dr, pc + dc
+                    if 0 <= nr < n and 0 <= nc < n and board.grid[nr][nc] is None:
+                        candidates.add((nr, nc))
+
+        return list(candidates)
 
     @staticmethod
     def _move_priority(move: tuple, n: int) -> int:
