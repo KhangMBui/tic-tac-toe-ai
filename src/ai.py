@@ -214,6 +214,24 @@ class MinimaxAI:
         )
         moves = sorted(candidates, key=lambda m: self._move_priority(m, n))
 
+        # Take an immediate win before doing full search.
+        for row, col in moves:
+            game.board.make_move(row, col, ai_player)
+            if game.check_winner() == ai_player:
+                game.board.undo_move(row, col)
+                self.nodes_explored_h = len(moves)
+                return (row, col)
+            game.board.undo_move(row, col)
+
+        # Block an immediate human win before doing full search.
+        for row, col in moves:
+            game.board.make_move(row, col, human_player)
+            if game.check_winner() == human_player:
+                game.board.undo_move(row, col)
+                self.nodes_explored_h = len(moves)
+                return (row, col)
+            game.board.undo_move(row, col)
+
         for row, col in moves:
             game.board.make_move(row, col, ai_player)
             score = self._minimax_ab_h(
