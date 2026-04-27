@@ -289,7 +289,10 @@ class TicTacToeGUI:
     def _do_ai_move(self) -> None:
         if not self._active:
             return
-        self._set_status("AI is thinking...")
+        if self._has_open_4(self._human):
+            self._set_status("Seems like I'm losing.")
+        else:
+            self._set_status("AI is thinking...")
 
         def _think() -> None:
             move = self._ai.get_best_move_heuristic(
@@ -325,17 +328,53 @@ class TicTacToeGUI:
         self._canvas.itemconfig(self._texts[(r, c)], text=player, fill="white")
         self._last_move = (r, c)
 
-        winner = self._game.check_winner()
-        if winner:
-            self._finish(winner)
-        elif self._game.is_draw():
+        if self._game.board.check_line_at(r, c, player):
+            self._finish(player)
+        elif self._game.board.is_full():
             self._finish(None)
         else:
             self._game.switch_turn()
             cur = self._game.current_player
-            self._set_status(
-                "Your turn" if cur == self._human else "AI is thinking..."
-            )
+            if cur == self._human:
+                if self._has_open_4(self._ai_player):
+                    self._set_status("I already win.")
+                else:
+                    self._set_status("Your turn")
+            else:
+                self._set_status("AI is thinking...")
+
+    def _has_open_4(self, player: str) -> bool:
+        """Return True if player has a run of 4+ marks with at least one open end."""
+        if self._game is None:
+            return False
+        board = self._game.board
+        n, k = board.n, board.k
+        if k < 5:
+            return False
+        for dr, dc in [(0, 1), (1, 0), (1, 1), (1, -1)]:
+            for r in range(n):
+                for c in range(n):
+                    if board._grid[r][c] != player:
+                        continue
+                    pr, pc = r - dr, c - dc
+                    if 0 <= pr < n and 0 <= pc < n and board._grid[pr][pc] == player:
+                        continue
+                    length, nr, nc = 0, r, c
+                    while 0 <= nr < n and 0 <= nc < n and board._grid[nr][nc] == player:
+                        length += 1
+                        nr += dr
+                        nc += dc
+                    if length < 4:
+                        continue
+                    e1r, e1c = r - dr, c - dc
+                    e2r, e2c = nr, nc
+                    e1_open = (0 <= e1r < n and 0 <= e1c < n
+                               and board._grid[e1r][e1c] is None)
+                    e2_open = (0 <= e2r < n and 0 <= e2c < n
+                               and board._grid[e2r][e2c] is None)
+                    if e1_open or e2_open:
+                        return True
+        return False
 
     # ------------------------------------------------------------------
     # End state
