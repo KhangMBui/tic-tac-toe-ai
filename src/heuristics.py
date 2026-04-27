@@ -4,6 +4,8 @@
 #   counting open lines
 #   rewarding near-complete rows/cols/diagonals
 
+from functools import lru_cache
+
 from src.features import FeatureExtractor
 
 
@@ -31,6 +33,7 @@ class HeuristicEvaluator:
         self.extractor = FeatureExtractor()
 
     @staticmethod
+    @lru_cache(maxsize=32)
     def _build_weights(k: int, n: int) -> dict:
         """
         Return a weight dictionary tuned for the given board dimensions.
@@ -53,19 +56,24 @@ class HeuristicEvaluator:
         w = {
             "my_winning_windows":   1000.0,
             "opp_winning_windows": -1000.0,
-            "my_immediate_wins":      2.0,
-            "opp_immediate_wins":    -2.0,
-            "my_two_way_threats":     0.5,
-            "opp_two_way_threats":   -1.0,
+            # Near-wins dominate evaluation — opponent with k-1 in a row will win
+            # next turn if not blocked; own k-1 in a row is nearly a forced win.
+            "my_immediate_wins":     50.0,
+            "opp_immediate_wins":   -50.0,
+            # Fork threats: opponent with two simultaneous threats is very dangerous.
+            "my_two_way_threats":    5.0,
+            "opp_two_way_threats":  -5.0,
         }
 
         # k-relative open-line weights.
         # open_{k-2} is the longest partial line that is NOT yet an immediate win
-        # threat, making it the best single positional signal that scales with k.
+        # threat. For k=5 this is open_3 (three in a row, two short of a win).
         # Skipped for k < 3 because k-2 < 1 has no corresponding feature.
+        # High weights force the AI to block building threats before they become
+        # immediate wins — critical for k=5 boards where open-3 leads to open-4.
         if k >= 3:
-            w[f"my_open_{k - 2}"]  =  1.0
-            w[f"opp_open_{k - 2}"] = -1.0
+            w[f"my_open_{k - 2}"]  =  15.0
+            w[f"opp_open_{k - 2}"] = -15.0
 
         # Center control only matters on small boards.
         if n <= 10:

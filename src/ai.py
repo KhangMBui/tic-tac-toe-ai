@@ -217,20 +217,33 @@ class MinimaxAI:
         # Take an immediate win before doing full search.
         for row, col in moves:
             game.board.make_move(row, col, ai_player)
-            if game.check_winner() == ai_player:
-                game.board.undo_move(row, col)
+            won = game.board.check_line_at(row, col, ai_player)
+            game.board.undo_move(row, col)
+            if won:
                 self.nodes_explored_h = len(moves)
                 return (row, col)
-            game.board.undo_move(row, col)
 
         # Block an immediate human win before doing full search.
         for row, col in moves:
             game.board.make_move(row, col, human_player)
-            if game.check_winner() == human_player:
-                game.board.undo_move(row, col)
+            won = game.board.check_line_at(row, col, human_player)
+            game.board.undo_move(row, col)
+            if won:
                 self.nodes_explored_h = len(moves)
                 return (row, col)
-            game.board.undo_move(row, col)
+
+        # Block open-(k-1) forced threats: k-1 consecutive human marks with
+        # BOTH adjacent ends empty. Playing at either end wins outright next
+        # turn, so no alpha-beta search can fix it — block immediately.
+        if game.board.k >= 3:
+            forced = self._find_open_forced_threats(game.board, human_player)
+            if forced:
+                moves_set = set(moves)
+                end1, end2 = forced[0]
+                for cell in (end1, end2):
+                    if cell in moves_set:
+                        self.nodes_explored_h = len(moves)
+                        return cell
 
         for row, col in moves:
             game.board.make_move(row, col, ai_player)
@@ -240,6 +253,7 @@ class MinimaxAI:
                 False,
                 ai_player, human_player,
                 evaluator,
+                (row, col), ai_player,
             )
             game.board.undo_move(row, col)
             if score > best_score:
@@ -258,6 +272,8 @@ class MinimaxAI:
         ai_player: str,
         human_player: str,
         evaluator,
+        last_move: tuple = None,
+        last_player: str = None,
     ) -> float:
         """
         Alpha-Beta search with a heuristic at the depth cutoff.
@@ -270,17 +286,18 @@ class MinimaxAI:
         Terminal scores use ±10000 so they always dominate any heuristic value,
         guaranteeing the AI never mistakes a heuristic estimate for an actual win.
         Depth is subtracted/added so the AI prefers faster wins and slower losses.
+
+        last_move / last_player: used for O(4k) winner check instead of O(n²k)
+        full-board scan. A new piece can only complete a line through itself.
         """
         self.nodes_explored_h += 1
 
-        # Terminal checks take priority over the depth cutoff.
-        winner = game.check_winner()
-        if winner == ai_player:
-            return 10000 - depth    # prefer faster wins
-        elif winner == human_player:
-            return depth - 10000    # prefer slower losses
-        elif game.is_draw():
-            return 0
+        # Fast terminal check through the last-placed cell only — O(4k).
+        if last_move is not None:
+            if game.board.check_line_at(last_move[0], last_move[1], last_player):
+                return (10000 - depth) if last_player == ai_player else (depth - 10000)
+            if game.board.is_full():    # O(1) via _empty set
+                return 0
 
         # Depth cutoff: score with heuristic instead of searching deeper.
         if depth >= max_depth:
@@ -298,6 +315,7 @@ class MinimaxAI:
                 val = self._minimax_ab_h(
                     game, depth + 1, max_depth, alpha, beta,
                     False, ai_player, human_player, evaluator,
+                    (row, col), ai_player,
                 )
                 game.board.undo_move(row, col)
                 max_eval = max(max_eval, val)
@@ -312,6 +330,7 @@ class MinimaxAI:
                 val = self._minimax_ab_h(
                     game, depth + 1, max_depth, alpha, beta,
                     True, ai_player, human_player, evaluator,
+                    (row, col), human_player,
                 )
                 game.board.undo_move(row, col)
                 min_eval = min(min_eval, val)
@@ -319,6 +338,45 @@ class MinimaxAI:
                 if beta <= alpha:
                     break
             return min_eval
+
+    @staticmethod
+    def _find_open_forced_threats(board, player: str):
+        """
+        Return (end1, end2) blocking pairs for every open-(k-1) threat by `player`.
+
+        An open-(k-1) is exactly k-1 consecutive marks in one direction with BOTH
+        adjacent cells empty and in-bounds. Either end cell wins immediately, so
+        the opponent must play at one of them or lose the following turn.
+
+        Only the start of each run is examined (skip cells with a same-player
+        predecessor) to avoid counting the same sequence multiple times.
+        """
+        k, n = board.k, board.n
+        threats = []
+        for dr, dc in [(0, 1), (1, 0), (1, 1), (1, -1)]:
+            for r in range(n):
+                for c in range(n):
+                    if board._grid[r][c] != player:
+                        continue
+                    pr, pc = r - dr, c - dc
+                    if 0 <= pr < n and 0 <= pc < n and board._grid[pr][pc] == player:
+                        continue  # not the start of this run
+                    length, nr, nc = 0, r, c
+                    while 0 <= nr < n and 0 <= nc < n and board._grid[nr][nc] == player:
+                        length += 1
+                        nr += dr
+                        nc += dc
+                    if length != k - 1:
+                        continue
+                    e1r, e1c = r - dr, c - dc
+                    e2r, e2c = nr, nc
+                    e1_open = (0 <= e1r < n and 0 <= e1c < n
+                               and board._grid[e1r][e1c] is None)
+                    e2_open = (0 <= e2r < n and 0 <= e2c < n
+                               and board._grid[e2r][e2c] is None)
+                    if e1_open and e2_open:
+                        threats.append(((e1r, e1c), (e2r, e2c)))
+        return threats
 
     @staticmethod
     def _get_candidate_moves(board, radius: int = 2):
@@ -341,23 +399,17 @@ class MinimaxAI:
         Only applied when board.n > 5; smaller boards use all available moves.
         """
         n = board.n
-        occupied = [
-            (r, c)
-            for r in range(n)
-            for c in range(n)
-            if board.grid[r][c] is not None
-        ]
 
-        if not occupied:
+        if not board._occupied:
             mid = n // 2
             return [(mid, mid)]
 
         candidates = set()
-        for pr, pc in occupied:
+        for pr, pc in board._occupied:
             for dr in range(-radius, radius + 1):
                 for dc in range(-radius, radius + 1):
                     nr, nc = pr + dr, pc + dc
-                    if 0 <= nr < n and 0 <= nc < n and board.grid[nr][nc] is None:
+                    if 0 <= nr < n and 0 <= nc < n and board._grid[nr][nc] is None:
                         candidates.add((nr, nc))
 
         return list(candidates)

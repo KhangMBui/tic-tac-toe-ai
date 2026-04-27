@@ -76,7 +76,7 @@ FIGURES_DIR = "report/figures"
 
 def _seed_board(game: Game, placements: list) -> None:
     for player, r, c in placements:
-        game.board.grid[r][c] = player
+        game.board.make_move(r, c, player)
 
 
 def _write_csv(path: str, rows: list) -> None:
