@@ -503,44 +503,53 @@ dictionary of 25+ interpretable features.
 
 ### Feature Groups
 
-**Basic counts:**
+#### Basic Counts
 
-```
-my_marks, opp_marks, empty_cells
-```
+| Feature | What it means | Why it matters |
+|---|---|---|
+| `my_marks` | How many of my pieces are on the board | Rough proxy for "how far into the game am I" |
+| `opp_marks` | How many opponent pieces are on the board | Same — combined with `my_marks` shows tempo balance |
+| `empty_cells` | How many cells are still open | Affects urgency: fewer empty cells = closer to forced draw |
 
-**Positional:**
+These are weak signals alone but useful as context for interpreting stronger features.
 
-```
-my_center_control, opp_center_control
-```
+#### Positional
 
 Center is defined as the single center cell (odd n) or the 2×2 center block (even n).
 
-**Window-based features:**
-A _window_ is any contiguous length-k segment in one of 4 directions (horizontal, vertical, two
-diagonals). For each window, we categorize it:
+| Feature | What it means | Why it matters |
+|---|---|---|
+| `my_center_control` | Number of my pieces in the center region | Center pieces participate in the most windows (rows, columns, and both diagonals all pass through center). Occupying center early expands your options in every direction. |
+| `opp_center_control` | Opponent's pieces in the center region | If the opponent controls center, they have more winning paths available. Only weighted for n ≤ 10 — on large boards the 2×2 center is strategically negligible. |
 
-```
-my_open_i     — exactly i of my marks, rest empty (i = 1 .. k-1)
-opp_open_i    — same for opponent
-my_immediate_wins   — k-1 of my marks + 1 empty (one move from winning)
-opp_immediate_wins  — same for opponent
-my_winning_windows  — k of my marks (already won)
-opp_winning_windows — k of opponent's marks
-blocked_windows     — both players present (neither can win here)
-neutral_windows     — all empty
-```
+#### Window-Based Features
 
-**Tactical (fork detection):**
+A **window** is any contiguous length-k segment in one of 4 directions (horizontal, vertical, two
+diagonals). Every possible winning line is a window. For each window, we classify its contents:
 
-```
-my_two_way_threats   — empty cells that, if played, create ≥2 simultaneous immediate threats
-opp_two_way_threats  — same for opponent
-```
+| Feature | What it means | Why it matters |
+|---|---|---|
+| `my_open_1` | Windows with exactly 1 of my marks, rest empty | Early positional presence — low weight but indicates coverage |
+| `my_open_2` … `my_open_{k-3}` | Windows with 2 … k-3 of my marks, rest empty | Building phase; the more partial lines, the more threat directions |
+| `my_open_{k-2}` | Windows with k-2 of my marks, rest empty | **The most strategically important partial line** — two marks short of a win. For k=5, this is three-in-a-row: a threat that must be answered within two moves or you lose. Weighted at ±15 in the heuristic. |
+| `my_immediate_wins` | Windows with k-1 of my marks + 1 empty | **One move from winning.** If not blocked, the game ends next turn. Weighted at ±50. |
+| `my_winning_windows` | Windows with k of my marks | Already completed a winning line — terminal state. Weighted at ±1000 in the heuristic (real terminal detection uses ±10000 in the search). |
+| `opp_open_i` | Same as above but for the opponent | Symmetric — opponent's threats are negative signals |
+| `blocked_windows` | Windows containing both players' pieces | Neither player can win through this window. Used to measure how many potential winning paths are permanently closed. |
+| `neutral_windows` | Windows with no pieces at all | Counts untouched potential — pure open space. |
 
-A fork is the strongest tactical weapon: you create two winning threats at once, and the opponent can
-only block one.
+The key insight: **a window containing both players is dead** — ignore it for threat counting. Only
+windows with pieces from one player (and empty cells) represent live winning opportunities.
+
+#### Tactical (Fork Detection)
+
+| Feature | What it means | Why it matters |
+|---|---|---|
+| `my_two_way_threats` | Count of empty cells that, if played by me, would create ≥2 simultaneous `immediate_win` threats | A **fork**: you create two winning threats at once and the opponent can only block one — you win next turn no matter what they do. The strongest offensive pattern in the game. |
+| `opp_two_way_threats` | Same for the opponent | If the opponent has a fork available and you do not block it, you lose the following turn. Weighted at ±30 — near-critical. |
+
+A fork is the most dangerous tactical pattern because it forces a win even against a perfect defender.
+Detecting and preventing forks is one of the main reasons the heuristic has real strategic strength.
 
 ### Window Enumeration Caching
 
@@ -607,6 +616,47 @@ This data directly informed the heuristic weights in M6.
 
 ## 11. Heuristic Function (M6)
 
+### Why Do We Need a Score at All?
+
+When Alpha-Beta hits the depth cutoff, the game is not over — there is no winner yet. We need a
+number that answers: **"who is winning right now, and by how much?"** Without that number, we have
+nothing to return at the cutoff node and cannot choose between candidate moves.
+
+The score gives the search a way to compare positions it will never fully explore. A move that leads
+to a position scored +150 is treated as better than one that leads to +30, even though neither has
+been played out to the end.
+
+### Where Does This Formula Come From?
+
+The **linear weighted evaluation function** is one of the oldest techniques in game AI. Claude
+Shannon described it in his foundational 1950 chess paper. The formula structure is always the same:
+
+```
+score = w₁×f₁ + w₂×f₂ + w₃×f₃ + ... + wₙ×fₙ
+```
+
+where each `fᵢ` is a feature describing the board and each `wᵢ` is a weight describing how much that
+feature matters. This is the same approach used in early chess programs, checkers solvers, and even
+modern Gomoku engines before neural networks became dominant.
+
+**It is not a formula from a paper — it is a design choice.** The specific features and weights in
+this project were determined by:
+
+1. **Feature selection (M4):** Identifying what aspects of the board are measurable and potentially
+   relevant (windows, forks, center control, etc.)
+2. **Data collection (M5):** Simulating thousands of games and computing feature values at each turn
+   alongside the final game outcome (+1 win / 0 draw / −1 loss)
+3. **Correlation analysis:** Examining which features had the strongest correlation with winning in
+   the M5 dataset — `my_immediate_wins` and `opp_two_way_threats` were top predictors; center
+   control was weak on larger boards
+4. **Manual tuning:** Translating those correlations into weights and verifying that the heuristic
+   actually makes the AI stronger (via the win-rate experiments in M8 Exp 3)
+
+So the formula is grounded in data, not invented arbitrarily — but the final numbers were hand-tuned
+rather than machine-learned.
+
+### The Formula
+
 `HeuristicEvaluator.evaluate(board, my_player, opp_player)` computes:
 
 ```
@@ -618,6 +668,11 @@ score = 1000 × my_winning_windows   − 1000 × opp_winning_windows
 ```
 
 Positive = good for my_player. Negative = good for opponent.
+
+The weights form a deliberate **priority hierarchy**: completing a winning line (1000) >> blocking
+an immediate threat (50) >> preventing a fork (30) >> building partial lines (15) >> center control
+(1). Each tier dominates the one below it, so the AI will always take a real win over any positional
+advantage.
 
 ### Key Design Choices
 
