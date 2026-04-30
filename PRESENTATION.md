@@ -31,12 +31,12 @@ Standard Tic-Tac-Toe is 3×3, 3-in-a-row. This engine is parameterized by two nu
 
 This is called the **m,n,k-game** in combinatorial game theory. Classic examples:
 
-| Game | n | k |
-|---|---|---|
-| Tic-Tac-Toe | 3 | 3 |
-| Connect Four (simplified) | 6 | 4 |
-| Gomoku | 15 | 5 |
-| This project (max) | 100 | 5 |
+| Game                      | n   | k   |
+| ------------------------- | --- | --- |
+| Tic-Tac-Toe               | 3   | 3   |
+| Connect Four (simplified) | 6   | 4   |
+| Gomoku                    | 15  | 5   |
+| This project (max)        | 100 | 5   |
 
 Every class, algorithm, and data structure in this codebase is parameterized by (n, k). There is no
 hardcoded 3×3 logic anywhere.
@@ -143,6 +143,7 @@ node in the search tree.
 ### Game (`src/game.py`)
 
 `Game` wraps `Board` and adds rules:
+
 - `switch_turn()` — alternates between the two players
 - `make_move(r, c)` — places the current player's piece
 - `get_available_moves()` — returns list of (r, c) from `board._empty`
@@ -179,29 +180,104 @@ Similarly, it delays losses as long as possible.
 
 ```python
 def _minimax(self, game, depth, is_maximizing, ai_player, human_player):
+    """
+    Minimax recursively evaluates all possible future game states.
+
+    Parameters:
+    - game: current game object
+    - depth: how many moves deep we are in the search tree
+    - is_maximizing: True if it is the AI's turn, False if it is the human's turn
+    - ai_player: the symbol/player controlled by the AI
+    - human_player: the symbol/player controlled by the human
+
+    Returns:
+    - positive score if the AI is winning
+    - negative score if the human is winning
+    - 0 if the game ends in a draw
+    """
+
+    # First, check if the current board already has a winner.
     winner = game.check_winner()
+
+    # If the AI wins, return a positive score.
+    # We subtract depth so the AI prefers winning sooner.
+    # Example:
+    # winning in 1 move gives a higher score than winning in 3 moves.
     if winner == ai_player:
         return 10 - depth
+
+    # If the human wins, return a negative score.
+    # We add depth so the AI prefers delaying a loss.
+    # Example:
+    # losing in 3 moves is less bad than losing in 1 move.
     if winner == human_player:
         return depth - 10
+
+    # If nobody wins and the board is full, this path is a draw.
     if game.is_draw():
         return 0
 
+    # Maximizing turn:
+    # This is the AI's turn, so we want to find the move
+    # that gives the highest possible score.
     if is_maximizing:
         best = float("-inf")
+
+        # Try every legal move the AI can make.
         for r, c in game.get_available_moves():
+            # Make a temporary move for the AI.
             game.board.make_move(r, c, ai_player)
-            score = self._minimax(game, depth+1, False, ai_player, human_player)
+
+            # Recursively evaluate what happens after this move.
+            # After AI moves, it becomes the human's turn,
+            # so is_maximizing becomes False.
+            score = self._minimax(
+                game,
+                depth + 1,
+                False,
+                ai_player,
+                human_player
+            )
+
+            # Undo the temporary move so we can try the next possible move.
             game.board.undo_move(r, c)
+
+            # Keep the best/highest score found so far.
             best = max(best, score)
+
+        # Return the best score the AI can force from this position.
         return best
+
+    # Minimizing turn:
+    # This is the human's turn, so we assume the human will choose
+    # the move that is worst for the AI.
     else:
         best = float("inf")
+
+        # Try every legal move the human can make.
         for r, c in game.get_available_moves():
+            # Make a temporary move for the human.
             game.board.make_move(r, c, human_player)
-            score = self._minimax(game, depth+1, True, ai_player, human_player)
+
+            # Recursively evaluate what happens after this move.
+            # After human moves, it becomes the AI's turn,
+            # so is_maximizing becomes True.
+            score = self._minimax(
+                game,
+                depth + 1,
+                True,
+                ai_player,
+                human_player
+            )
+
+            # Undo the temporary move so we can try the next possible move.
             game.board.undo_move(r, c)
+
+            # Keep the lowest score found so far,
+            # because the human is trying to minimize the AI's outcome.
             best = min(best, score)
+
+        # Return the worst score the human can force against the AI.
         return best
 ```
 
@@ -226,6 +302,7 @@ In Minimax, you often explore branches you already know cannot influence the res
 skips them.
 
 Two values are tracked throughout the search:
+
 - **alpha** — the best score the maximizer has found so far (a lower bound)
 - **beta** — the best score the minimizer has found so far (an upper bound)
 
@@ -237,32 +314,126 @@ has something better.
 
 ```python
 def _minimax_ab(self, game, depth, alpha, beta, is_maximizing, ai_player, human_player):
-    winner = game.check_winner()
-    if winner == ai_player: return 10 - depth
-    if winner == human_player: return depth - 10
-    if game.is_draw(): return 0
+    """
+    Minimax with Alpha-Beta Pruning.
 
+    This recursively evaluates possible future game states, just like normal Minimax,
+    but it uses alpha and beta to skip branches that do not need to be searched.
+
+    Parameters:
+    - game: current game object
+    - depth: how many moves deep we are in the search tree
+    - alpha: the best score the maximizing player (AI) can guarantee so far
+    - beta: the best score the minimizing player (human) can guarantee so far
+    - is_maximizing: True if it is the AI's turn, False if it is the human's turn
+    - ai_player: the symbol/player controlled by the AI
+    - human_player: the symbol/player controlled by the human
+
+    Returns:
+    - positive score if the AI is winning
+    - negative score if the human is winning
+    - 0 if the game ends in a draw
+    """
+
+    # First, check if the current board already has a winner.
+    winner = game.check_winner()
+
+    # If the AI wins, return a positive score.
+    # Subtract depth so the AI prefers winning sooner.
+    if winner == ai_player:
+        return 10 - depth
+
+    # If the human wins, return a negative score.
+    # Add depth so the AI prefers losing later instead of losing immediately.
+    if winner == human_player:
+        return depth - 10
+
+    # If nobody wins and there are no moves left, this path is a draw.
+    if game.is_draw():
+        return 0
+
+    # Maximizing turn:
+    # This is the AI's turn, so the AI wants the highest possible score.
     if is_maximizing:
         best = float("-inf")
+
+        # Try every legal AI move.
         for r, c in game.get_available_moves():
+            # Make a temporary move for the AI.
             game.board.make_move(r, c, ai_player)
-            val = self._minimax_ab(game, depth+1, alpha, beta, False, ...)
+
+            # Recursively evaluate the board after this move.
+            # After AI moves, it becomes the human's turn.
+            val = self._minimax_ab(
+                game,
+                depth + 1,
+                alpha,
+                beta,
+                False,
+                ai_player,
+                human_player
+            )
+
+            # Undo the temporary move so we can test another move.
             game.board.undo_move(r, c)
+
+            # Keep the best score found for the AI.
             best = max(best, val)
+
+            # Update alpha.
+            # Alpha means: the best score the AI can guarantee so far.
             alpha = max(alpha, val)
+
+            # Pruning condition:
+            # If beta <= alpha, the minimizing player already has a better option elsewhere.
+            # So there is no reason to keep checking this branch.
             if beta <= alpha:
                 break   # beta cut-off
+
+        # Return the best score the AI can force from this position.
         return best
+
+    # Minimizing turn:
+    # This is the human's turn, so we assume the human chooses the move
+    # that gives the lowest score for the AI.
     else:
         best = float("inf")
+
+        # Try every legal human move.
         for r, c in game.get_available_moves():
+            # Make a temporary move for the human.
             game.board.make_move(r, c, human_player)
-            val = self._minimax_ab(game, depth+1, alpha, beta, True, ...)
+
+            # Recursively evaluate the board after this move.
+            # After human moves, it becomes the AI's turn.
+            val = self._minimax_ab(
+                game,
+                depth + 1,
+                alpha,
+                beta,
+                True,
+                ai_player,
+                human_player
+            )
+
+            # Undo the temporary move so we can test another move.
             game.board.undo_move(r, c)
+
+            # Keep the worst/lowest score from the AI's perspective.
             best = min(best, val)
+
+            # Update beta.
+            # Beta means: the best score the human can guarantee so far,
+            # which is the lowest score for the AI.
             beta = min(beta, val)
+
+            # Pruning condition:
+            # If beta <= alpha, the maximizing player already has a better option elsewhere.
+            # So there is no reason to keep checking this branch.
             if beta <= alpha:
                 break   # alpha cut-off
+
+        # Return the lowest score the human can force against the AI.
         return best
 ```
 
@@ -270,10 +441,10 @@ def _minimax_ab(self, game, depth, alpha, beta, is_maximizing, ai_player, human_
 
 On a 3×3 board from the opening position (2 pieces placed):
 
-| Method | Nodes visited | Reduction |
-|---|---|---|
-| Minimax | 7,979 | — |
-| Alpha-Beta | 1,988 | **75% fewer** |
+| Method     | Nodes visited | Reduction     |
+| ---------- | ------------- | ------------- |
+| Minimax    | 7,979         | —             |
+| Alpha-Beta | 1,988         | **75% fewer** |
 
 Same result. Same optimal move. 75% less work.
 
@@ -288,6 +459,7 @@ practice, with good move ordering, you get 40–75% pruning.
 Even with Alpha-Beta, exhaustive search breaks down quickly.
 
 Consider a 5×5 board, k=4:
+
 - ~25 moves in a game
 - Branching factor ~20 mid-game (after Alpha-Beta)
 - Tree depth = 25 plies
@@ -332,18 +504,21 @@ dictionary of 25+ interpretable features.
 ### Feature Groups
 
 **Basic counts:**
+
 ```
 my_marks, opp_marks, empty_cells
 ```
 
 **Positional:**
+
 ```
 my_center_control, opp_center_control
 ```
+
 Center is defined as the single center cell (odd n) or the 2×2 center block (even n).
 
 **Window-based features:**
-A *window* is any contiguous length-k segment in one of 4 directions (horizontal, vertical, two
+A _window_ is any contiguous length-k segment in one of 4 directions (horizontal, vertical, two
 diagonals). For each window, we categorize it:
 
 ```
@@ -358,10 +533,12 @@ neutral_windows     — all empty
 ```
 
 **Tactical (fork detection):**
+
 ```
 my_two_way_threats   — empty cells that, if played, create ≥2 simultaneous immediate threats
 opp_two_way_threats  — same for opponent
 ```
+
 A fork is the strongest tactical weapon: you create two winning threats at once, and the opponent can
 only block one.
 
@@ -386,11 +563,11 @@ simultaneous immediate threats. This is O(n²) per board evaluation.
 
 For large boards, this becomes a bottleneck. The solution: stratify by board size.
 
-| Board size | Strategy |
-|---|---|
-| n ≤ 15 | Full scan of all empty cells |
+| Board size  | Strategy                                           |
+| ----------- | -------------------------------------------------- |
+| n ≤ 15      | Full scan of all empty cells                       |
 | 15 < n ≤ 20 | Scan only cells within radius-2 of occupied pieces |
-| n > 20 | Skip entirely (return 0) |
+| n > 20      | Skip entirely (return 0)                           |
 
 The radius-2 restriction mirrors what `_get_candidate_moves` uses in the AI — cells far from any
 occupied piece are not strategically relevant in k-in-a-row games.
@@ -481,15 +658,51 @@ It runs the same Alpha-Beta search as M3, but adds a **depth cutoff**: when the 
 def _minimax_ab_h(self, game, depth, max_depth, alpha, beta,
                   is_maximizing, ai_player, human_player, evaluator,
                   last_move, last_player):
-
-    # Fast O(4k) terminal check — only through the last-placed cell.
+    # ------------------------------------------------------------
+    # 1. Fast terminal check
+    # ------------------------------------------------------------
+    # Instead of scanning the entire board to check for a winner,
+    # we only check lines passing through the last move.
+    #
+    # This works because the only way a new win can happen is if
+    # the most recent piece completed a line.
+    #
+    # For example, if the last move was at (row, col), then only
+    # rows/columns/diagonals touching that cell could have changed.
     if last_move is not None:
         if game.board.check_line_at(last_move[0], last_move[1], last_player):
-            return (10000 - depth) if last_player == ai_player else (depth - 10000)
+
+            # If the last player was the AI, this is an AI win.
+            # Return a very large positive score.
+            #
+            # Subtract depth so faster wins are preferred.
+            if last_player == ai_player:
+                return 10000 - depth
+
+            # If the last player was the human, this is a human win.
+            # Return a very large negative score.
+            #
+            # Add depth so slower losses are preferred.
+            else:
+                return depth - 10000
+
+        # If the board is full and there is no winner, this path is a draw.
+        #
+        # In this project, board.is_full() is O(1) because the board tracks
+        # empty cells using an _empty set.
         if game.board.is_full():
             return 0
 
-    # Depth cutoff: score with heuristic instead of searching deeper.
+    # ------------------------------------------------------------
+    # 2. Depth cutoff
+    # ------------------------------------------------------------
+    # If we reached the maximum search depth, stop searching deeper.
+    #
+    # Instead of playing the game out completely, estimate how good
+    # the current board is using the heuristic evaluator.
+    #
+    # Terminal states were checked before this, so real wins/losses/draws
+    # still take priority over heuristic guesses.
     if depth >= max_depth:
         return evaluator.evaluate(game.board, ai_player, human_player)
 
@@ -506,10 +719,10 @@ line through itself. By passing `last_move` and `last_player` down the recursion
 ### Default Depth Schedule
 
 | Board size | Auto depth |
-|---|---|
-| n ≤ 5 | 4 |
-| n ≤ 10 | 3 |
-| n > 10 | 2 |
+| ---------- | ---------- |
+| n ≤ 5      | 4          |
+| n ≤ 10     | 3          |
+| n > 10     | 2          |
 
 Chosen to keep AI response time under ~1 second. Users can override via the GUI's depth field.
 
@@ -564,6 +777,7 @@ always made.
 ### Why the Order Matters
 
 The checks must run in this exact order:
+
 1. Win immediately (never miss a winning move)
 2. Block opponent's win (never let opponent win when you could block)
 3. Block forced threat (never enter a position you cannot escape)
@@ -573,6 +787,12 @@ If check 1 and 2 both apply (you can win AND the opponent can win), check 1 take
 ---
 
 ## 14. Candidate Move Restriction (Scaling Breakthrough)
+Key idea: "Do not search the whole board.
+
+Find where pieces already exist.
+Then only consider empty cells near those pieces.
+
+That keeps the AI focused on the active fighting area."
 
 For n > 5, `get_available_moves()` can return up to n² candidates. On a 50×50 board, that is 2,500
 moves. At depth=2, you evaluate 2,500² = 6.25 million leaf nodes. That is completely infeasible.
@@ -585,12 +805,49 @@ piece:
 
 ```python
 candidates = set()
+
+# Look at every occupied cell on the board.
+# These are the places where the game is currently happening.
+#
+# Example:
+# If there are pieces clustered near the top-left,
+# we only search around that cluster instead of checking
+# empty cells far away in the bottom-right.
 for pr, pc in board._occupied:
+
+    # Search a square neighborhood around the occupied piece.
+    #
+    # radius = 2 means:
+    # check cells up to 2 rows away and 2 columns away.
+    #
+    # This uses Chebyshev distance, meaning diagonals count too.
+    # So the search area is a square around the piece, not just
+    # up/down/left/right.
     for dr in range(-2, radius + 1):
         for dc in range(-2, radius + 1):
+
+            # Convert the offset back into an actual board position.
             nr, nc = pr + dr, pc + dc
+
+            # Only keep the position if:
+            # 1. it is inside the board
+            # 2. it is empty
+            #
+            # This filters out illegal moves and already-filled cells.
             if 0 <= nr < n and 0 <= nc < n and board._grid[nr][nc] is None:
+
+                # Add this nearby empty cell as a candidate move.
+                #
+                # A set is used so the same cell is not added multiple times
+                # if it is near more than one occupied piece.
                 candidates.add((nr, nc))
+
+# Return only the nearby empty cells.
+#
+# This is the key scaling improvement:
+# instead of searching every empty cell on a huge board,
+# the AI searches only around the active areas where threats,
+# blocks, and line-building can actually happen.
 return list(candidates)
 ```
 
@@ -600,6 +857,7 @@ On an empty board, returns just the center — the universally strongest opening
 positions. This makes depth=2 feasible on boards up to 100×100.
 
 This restriction is applied at two points:
+
 - In `get_best_move_heuristic` (the root move selection)
 - Inside `_minimax_ab_h` (at every recursive node)
 
@@ -609,15 +867,15 @@ This restriction is applied at two points:
 
 Every component was designed with large boards in mind. The full picture:
 
-| Problem | Solution | Where |
-|---|---|---|
-| Branching factor n² | Candidate-move radius=2 around occupied cells | `ai.py: _get_candidate_moves` |
-| Winner check O(n²k) at every node | `check_line_at` O(4k) through last-placed cell | `board.py: check_line_at` |
-| Window enumeration repeated per leaf | `@lru_cache` on `_enumerate_windows(n, k)` | `features.py` |
-| Fork scan O(n²) per heuristic call | Full scan n≤15, radius-2 scan 15<n≤20, skip n>20 | `features.py: _count_two_way_threats` |
-| Center control noise on large boards | Center weight only for n≤10 | `heuristics.py: _build_weights` |
-| Depth=3 too slow for n>10 | Auto depth: n≤10→3, n>10→2 | `gui.py: _auto_depth` |
-| Pre-search checks on large move set | Only run on candidate moves (already restricted) | `ai.py: get_best_move_heuristic` |
+| Problem                              | Solution                                         | Where                                 |
+| ------------------------------------ | ------------------------------------------------ | ------------------------------------- |
+| Branching factor n²                  | Candidate-move radius=2 around occupied cells    | `ai.py: _get_candidate_moves`         |
+| Winner check O(n²k) at every node    | `check_line_at` O(4k) through last-placed cell   | `board.py: check_line_at`             |
+| Window enumeration repeated per leaf | `@lru_cache` on `_enumerate_windows(n, k)`       | `features.py`                         |
+| Fork scan O(n²) per heuristic call   | Full scan n≤15, radius-2 scan 15<n≤20, skip n>20 | `features.py: _count_two_way_threats` |
+| Center control noise on large boards | Center weight only for n≤10                      | `heuristics.py: _build_weights`       |
+| Depth=3 too slow for n>10            | Auto depth: n≤10→3, n>10→2                       | `gui.py: _auto_depth`                 |
+| Pre-search checks on large move set  | Only run on candidate moves (already restricted) | `ai.py: get_best_move_heuristic`      |
 
 These optimizations compose: the candidate restriction reduces branching factor, the `lru_cache` on
 windows means the cost of feature extraction is amortized, and `check_line_at` keeps terminal
@@ -634,23 +892,23 @@ Three reproducible experiments in `src/benchmark.py`.
 Both methods produce the identical optimal move. Alpha-Beta prunes 41–75% of nodes depending on
 game phase.
 
-| Position | Minimax nodes | AB nodes | Pruned |
-|---|---|---|---|
-| Early (2 placed) | 7,979 | 1,988 | **75%** |
-| Mid (4 placed) | 149 | 88 | 41% |
-| Late (6 placed) | 11 | 11 | 0% |
+| Position         | Minimax nodes | AB nodes | Pruned  |
+| ---------------- | ------------- | -------- | ------- |
+| Early (2 placed) | 7,979         | 1,988    | **75%** |
+| Mid (4 placed)   | 149           | 88       | 41%     |
+| Late (6 placed)  | 11            | 11       | 0%      |
 
 Late-game pruning drops to 0% because there are so few moves left that Alpha-Beta has nothing to cut.
 
 ### Experiment 2 — Full Search vs Depth-Limited (4×4, k=3)
 
-| Method | Nodes visited | Same move as full search? |
-|---|---|---|
-| Full Alpha-Beta (reference) | 47,183 | — |
-| Heuristic depth=1 | 12 | No |
-| Heuristic depth=2 | 144 | **Yes — 34× fewer nodes** |
-| Heuristic depth=3 | 288 | Yes |
-| Heuristic depth=4 | 1,371 | Yes |
+| Method                      | Nodes visited | Same move as full search? |
+| --------------------------- | ------------- | ------------------------- |
+| Full Alpha-Beta (reference) | 47,183        | —                         |
+| Heuristic depth=1           | 12            | No                        |
+| Heuristic depth=2           | 144           | **Yes — 34× fewer nodes** |
+| Heuristic depth=3           | 288           | Yes                       |
+| Heuristic depth=4           | 1,371         | Yes                       |
 
 At depth=2, the heuristic AI finds the correct move using 34× fewer node evaluations than exhaustive
 search. This demonstrates that the heuristic is accurately capturing board quality — the AI does not
@@ -658,11 +916,11 @@ need to see the entire game tree.
 
 ### Experiment 3 — Heuristic AI vs Random (20 games each)
 
-| Board | k | Depth | Win% | Draw% | Loss% |
-|---|---|---|---|---|---|
-| 3×3 | 3 | 4 | 85% | 15% | 0% |
-| 4×4 | 3 | 3 | **100%** | 0% | 0% |
-| 5×5 | 4 | 2 | **100%** | 0% | 0% |
+| Board | k   | Depth | Win%     | Draw% | Loss% |
+| ----- | --- | ----- | -------- | ----- | ----- |
+| 3×3   | 3   | 4     | 85%      | 15%   | 0%    |
+| 4×4   | 3   | 3     | **100%** | 0%    | 0%    |
+| 5×5   | 4   | 2     | **100%** | 0%    | 0%    |
 
 The AI never loses to a random opponent. On 3×3 the draws are expected — optimal play leads to
 draws on this board.
@@ -711,10 +969,12 @@ the correct pattern for Tkinter + threads.
 ### Status Commentary
 
 When it is the AI's turn, the status bar shows:
+
 - `"Seems like I'm losing."` — if the human has 4+ in a row with both ends open (only on k=5 boards)
 - `"AI is thinking..."` — otherwise
 
 When it becomes the human's turn:
+
 - `"I already win."` — if the AI has 4+ in a row with both ends open
 - `"Your turn"` — otherwise
 
@@ -737,14 +997,14 @@ strategically decisive without immediately winning.
 
 57 tests across 6 files, all passing. Run with `python -m pytest tests/ -q`.
 
-| File | What it covers | Count |
-|---|---|---|
-| `test_board.py` | Grid state, make/undo move, set sync, clone, check_line_at | 9 |
-| `test_game.py` | Win detection in all 4 directions, draw, turn switching | 9 |
-| `test_ai.py` | Minimax correctness, Alpha-Beta equivalence, heuristic AB cutoff, efficiency | 20 |
-| `test_features.py` | Feature extraction, perspective symmetry, even/odd boards | 8 |
-| `test_heuristics.py` | Score sign on crafted boards, symmetry invariant | 6 |
-| `test_data_collection.py` | Dataset generation, outcome encoding, policy correctness | 5 |
+| File                      | What it covers                                                               | Count |
+| ------------------------- | ---------------------------------------------------------------------------- | ----- |
+| `test_board.py`           | Grid state, make/undo move, set sync, clone, check_line_at                   | 9     |
+| `test_game.py`            | Win detection in all 4 directions, draw, turn switching                      | 9     |
+| `test_ai.py`              | Minimax correctness, Alpha-Beta equivalence, heuristic AB cutoff, efficiency | 20    |
+| `test_features.py`        | Feature extraction, perspective symmetry, even/odd boards                    | 8     |
+| `test_heuristics.py`      | Score sign on crafted boards, symmetry invariant                             | 6     |
+| `test_data_collection.py` | Dataset generation, outcome encoding, policy correctness                     | 5     |
 
 ### Key Test: `test_symmetry`
 
@@ -939,4 +1199,4 @@ tic_tac_toe_ai/
 
 ---
 
-*End of presentation. All code is in `src/`. Tests are in `tests/`. Benchmark results are in `report/`.*
+_End of presentation. All code is in `src/`. Tests are in `tests/`. Benchmark results are in `report/`._

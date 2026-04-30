@@ -309,19 +309,59 @@ class TicTacToeGUI:
     # ------------------------------------------------------------------
 
     def _do_ai_move(self) -> None:
+        """
+        Start the AI move process.
+
+        Important idea:
+        The AI search can be expensive, especially with minimax / alpha-beta /
+        heuristic search on a large board.
+
+        If we run that search directly on the Tkinter main thread, the whole
+        canvas UI can freeze until the AI finishes thinking.
+
+        So instead, we run the AI search on a separate background thread.
+        """
+        # If the game is no longer active, do nothing.
+        # This prevents the AI from moving after the game is already over.
         if not self._active:
             return
+        
+        # Update the status text before the AI starts thinking.
+        # This runs on the main UI thread, so the player immediately sees feedback.
         if self._has_open_4(self._human):
             self._set_status("Seems like I'm losing.")
         else:
             self._set_status("AI is thinking...")
 
         def _think() -> None:
+            """
+            This function runs in a background thread.
+
+            The expensive AI calculation happens here, not on the Tkinter canvas/main thread.
+
+            That means the UI can still repaint, update status text, and stay
+            responsive while the AI is searching for a move.
+            """
+
+            # Ask the AI to calculate the best move.
+            # This may take noticeable time because the AI is searching possible
+            # future moves using heuristic minimax / alpha-beta pruning.
+            # Since this is inside _think(), it runs on the background thread,
+            # so it does NOT freeze the canvas.
             move = self._ai.get_best_move_heuristic(
                 self._game, self._ai_player, self._human, max_depth=self._depth
             )
+
+            # Tkinter UI updates must happen on the main thread.
             self.root.after(0, lambda: self._apply_ai_result(move))
 
+        # Start the AI calculation in a separate background thread.
+        #
+        # Without this, the AI thinking would block the main Tkinter event loop,
+        # causing the whole game window/canvas to freeze until the move is found.
+        #
+        # daemon=True means this thread will not keep the app alive by itself
+        # if the main window is closed.
         threading.Thread(target=_think, daemon=True).start()
 
     def _apply_ai_result(self, move) -> None:
