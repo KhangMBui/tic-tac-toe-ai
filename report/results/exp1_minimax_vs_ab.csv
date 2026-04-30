@@ -1,7 +1,7 @@
 position_name,n,k,pieces_placed,method,nodes_explored,time_ms,best_move_row,best_move_col
-early_2placed,3,3,2,minimax,7979,128.24,0,2
-early_2placed,3,3,2,alpha_beta,1988,33.099,0,2
-mid_4placed,3,3,4,minimax,149,1.701,1,1
-mid_4placed,3,3,4,alpha_beta,88,1.072,1,1
-late_6placed,3,3,6,minimax,11,0.187,2,0
-late_6placed,3,3,6,alpha_beta,11,0.191,2,0
+early_2placed,3,3,2,minimax,7979,133.023,2,0
+early_2placed,3,3,2,alpha_beta,2671,43.526,2,0
+mid_4placed,3,3,4,minimax,149,1.718,1,1
+mid_4placed,3,3,4,alpha_beta,99,1.184,1,1
+late_6placed,3,3,6,minimax,11,0.198,2,0
+late_6placed,3,3,6,alpha_beta,11,0.196,2,0

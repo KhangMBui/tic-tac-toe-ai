@@ -1,6 +1,6 @@
 method,max_depth,nodes_explored,time_ms,best_move_row,best_move_col,matches_full_ab
-full_ab,,47183,1093.7,0,2,True
-heuristic_ab,1,12,2.919,1,2,False
-heuristic_ab,2,144,8.664,0,2,True
-heuristic_ab,3,288,13.639,0,2,True
-heuristic_ab,4,1371,86.529,0,2,True
+full_ab,,92147,2133.634,0,2,True
+heuristic_ab,1,12,1.658,0,2,True
+heuristic_ab,2,12,0.045,0,2,True
+heuristic_ab,3,12,0.041,0,2,True
+heuristic_ab,4,12,0.04,0,2,True

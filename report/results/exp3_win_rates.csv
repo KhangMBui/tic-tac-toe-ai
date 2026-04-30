@@ -14,11 +14,11 @@ n,k,max_depth,game_id,ai_player,random_player,winner,ai_result
 3,3,4,12,O,X,O,win
 3,3,4,13,O,X,O,win
 3,3,4,14,O,X,O,win
-3,3,4,15,O,X,O,win
-3,3,4,16,O,X,DRAW,draw
+3,3,4,15,O,X,DRAW,draw
+3,3,4,16,O,X,O,win
 3,3,4,17,O,X,O,win
 3,3,4,18,O,X,O,win
-3,3,4,19,O,X,DRAW,draw
+3,3,4,19,O,X,O,win
 4,3,3,0,X,O,X,win
 4,3,3,1,X,O,X,win
 4,3,3,2,X,O,X,win
