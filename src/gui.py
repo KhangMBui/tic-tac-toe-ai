@@ -20,16 +20,16 @@ from src.game import Game
 # ---------------------------------------------------------------------------
 # Visual constants
 # ---------------------------------------------------------------------------
-PLAYER_COLORS  = {"X": "#4A90D9", "O": "#E74C3C"}
-WIN_COLOR       = "#2ECC71"
-LAST_OUTLINE    = "#27AE60"   # green border on the most-recently placed cell
-CELL_BG         = "white"
-GRID_LINE       = "#CCCCCC"
-BG              = "#F5F5F5"
-STATUS_FONT     = ("Helvetica", 12)
-MAX_CELL_PX     = 72
-MIN_CELL_PX     = 28
-GAP             = 2           # pixels between cells
+PLAYER_COLORS = {"X": "#4A90D9", "O": "#E74C3C"}
+WIN_COLOR = "#2ECC71"
+LAST_OUTLINE = "#27AE60"  # green border on the most-recently placed cell
+CELL_BG = "white"
+GRID_LINE = "#CCCCCC"
+BG = "#F5F5F5"
+STATUS_FONT = ("Helvetica", 12)
+MAX_CELL_PX = 72
+MIN_CELL_PX = 28
+GAP = 2  # pixels between cells
 
 
 def _auto_depth(n: int) -> int:
@@ -43,6 +43,7 @@ def _auto_depth(n: int) -> int:
 # ---------------------------------------------------------------------------
 # Start dialog
 # ---------------------------------------------------------------------------
+
 
 class _StartDialog(tk.Toplevel):
     """Modal config dialog; sets self.result to a dict or None on cancel."""
@@ -58,15 +59,16 @@ class _StartDialog(tk.Toplevel):
 
         tk.Label(self, text="Board size  n:").grid(row=0, column=0, sticky="e", **pad)
         self._n = tk.StringVar(value="3")
-        tk.Entry(self, textvariable=self._n, width=6).grid(row=0, column=1, **pad)
-        tk.Label(self, text="(3–100)", font=("Helvetica", 9), fg="gray").grid(
-            row=0, column=2, sticky="w")
+        tk.OptionMenu(self, self._n, "3", "30", "50", "100").grid(
+            row=0, column=1, columnspan=2, sticky="w", padx=10, pady=4
+        )
 
         tk.Label(self, text="Win length  k:").grid(row=1, column=0, sticky="e", **pad)
         self._k = tk.StringVar(value="3")
         tk.Entry(self, textvariable=self._k, width=6).grid(row=1, column=1, **pad)
-        tk.Label(self, text="(auto: min(n, 5) — updates as you type n)",
-                 font=("Helvetica", 9), fg="gray").grid(row=1, column=2, sticky="w")
+        tk.Label(self, text="(auto: min(n, 5))", font=("Helvetica", 9), fg="gray").grid(
+            row=1, column=2, sticky="w"
+        )
 
         def _sync_k(*_):
             try:
@@ -79,18 +81,24 @@ class _StartDialog(tk.Toplevel):
         tk.Label(self, text="Search depth:").grid(row=2, column=0, sticky="e", **pad)
         self._depth = tk.StringVar(value="auto")
         tk.Entry(self, textvariable=self._depth, width=6).grid(row=2, column=1, **pad)
-        tk.Label(self, text='("auto" picks by board size)',
-                 font=("Helvetica", 9), fg="gray").grid(row=2, column=2, sticky="w")
+        tk.Label(
+            self, text='("auto" picks by board size)', font=("Helvetica", 9), fg="gray"
+        ).grid(row=2, column=2, sticky="w")
 
         tk.Label(self, text="You play as:").grid(row=3, column=0, sticky="e", **pad)
         self._human = tk.StringVar(value="X")
         frame = tk.Frame(self)
         frame.grid(row=3, column=1, columnspan=2, sticky="w", padx=10)
-        tk.Radiobutton(frame, text="X  (first)",  variable=self._human, value="X").pack(side="left")
-        tk.Radiobutton(frame, text="O  (second)", variable=self._human, value="O").pack(side="left")
+        tk.Radiobutton(frame, text="X  (first)", variable=self._human, value="X").pack(
+            side="left"
+        )
+        tk.Radiobutton(frame, text="O  (second)", variable=self._human, value="O").pack(
+            side="left"
+        )
 
-        tk.Button(self, text="Start", command=self._ok,
-                  width=12).grid(row=4, column=0, columnspan=3, pady=12)
+        tk.Button(self, text="Start", command=self._ok, width=12).grid(
+            row=4, column=0, columnspan=3, pady=12
+        )
         self.wait_window()
 
     def _ok(self) -> None:
@@ -116,6 +124,7 @@ class _StartDialog(tk.Toplevel):
 # Main game window
 # ---------------------------------------------------------------------------
 
+
 class TicTacToeGUI:
     """
     Renders the board as canvas rectangles + text items.
@@ -129,7 +138,7 @@ class TicTacToeGUI:
         self.root = root
         self.root.title("Tic-Tac-Toe AI")
         self.root.configure(bg=BG)
-        self.root.withdraw()   # hidden until first game config is confirmed
+        self.root.withdraw()  # hidden until first game config is confirmed
 
         self._ai = MinimaxAI()
         self._game: Game | None = None
@@ -137,11 +146,11 @@ class TicTacToeGUI:
         self._ai_player = "O"
         self._depth = 4
         self._active = False
-        self._last_move: tuple | None = None   # (r, c) of most recent piece
+        self._last_move: tuple | None = None  # (r, c) of most recent piece
 
         # Canvas item id maps — populated in _build_board
-        self._rects: dict = {}   # (r, c) -> rectangle id
-        self._texts: dict = {}   # (r, c) -> text id
+        self._rects: dict = {}  # (r, c) -> rectangle id
+        self._texts: dict = {}  # (r, c) -> text id
         self._cell_size = MIN_CELL_PX
 
         self._build_chrome()
@@ -161,8 +170,9 @@ class TicTacToeGUI:
         self.root.config(menu=menubar)
 
         self._status_var = tk.StringVar(value="")
-        tk.Label(self.root, textvariable=self._status_var,
-                 font=STATUS_FONT, bg=BG, pady=6).pack()
+        tk.Label(
+            self.root, textvariable=self._status_var, font=STATUS_FONT, bg=BG, pady=6
+        ).pack()
 
         container = tk.Frame(self.root, bg=BG)
         container.pack(fill="both", expand=True, padx=12, pady=4)
@@ -172,8 +182,12 @@ class TicTacToeGUI:
         self._canvas = tk.Canvas(container, bg=CELL_BG, highlightthickness=0)
         self._canvas.grid(row=0, column=0, sticky="nsew")
 
-        v_scroll = tk.Scrollbar(container, orient="vertical",   command=self._canvas.yview)
-        h_scroll = tk.Scrollbar(container, orient="horizontal", command=self._canvas.xview)
+        v_scroll = tk.Scrollbar(
+            container, orient="vertical", command=self._canvas.yview
+        )
+        h_scroll = tk.Scrollbar(
+            container, orient="horizontal", command=self._canvas.xview
+        )
         v_scroll.grid(row=0, column=1, sticky="ns")
         h_scroll.grid(row=1, column=0, sticky="ew")
         self._canvas.configure(yscrollcommand=v_scroll.set, xscrollcommand=h_scroll.set)
@@ -190,8 +204,13 @@ class TicTacToeGUI:
             lambda e: self._canvas.xview_scroll(-1 if e.delta > 0 else 1, "units"),
         )
 
-        tk.Button(self.root, text="New Game", command=self._new_game,
-                  font=STATUS_FONT, width=14).pack(pady=10)
+        tk.Button(
+            self.root,
+            text="New Game",
+            command=self._new_game,
+            font=STATUS_FONT,
+            width=14,
+        ).pack(pady=10)
 
     def _build_board(self, n: int) -> None:
         self._canvas.delete("all")
@@ -213,8 +232,11 @@ class TicTacToeGUI:
                     x1, y1, x2, y2, fill=CELL_BG, outline=GRID_LINE, width=1
                 )
                 self._texts[(r, c)] = self._canvas.create_text(
-                    (x1 + x2) // 2, (y1 + y2) // 2,
-                    text="", font=("Helvetica", font_size, "bold"), fill="white"
+                    (x1 + x2) // 2,
+                    (y1 + y2) // 2,
+                    text="",
+                    font=("Helvetica", font_size, "bold"),
+                    fill="white",
                 )
 
         board_px = n * step + GAP
@@ -232,15 +254,15 @@ class TicTacToeGUI:
     def _new_game(self) -> None:
         dlg = _StartDialog(self.root)
         if dlg.result is None:
-            if self._game is None:   # cancelled before any game ever started
+            if self._game is None:  # cancelled before any game ever started
                 self.root.quit()
             return
         cfg = dlg.result
-        self._human     = cfg["human"]
+        self._human = cfg["human"]
         self._ai_player = "O" if self._human == "X" else "X"
-        self._depth     = cfg["depth"]
-        self._game      = Game(cfg["n"], cfg["k"], "X", "O")
-        self._active    = True
+        self._depth = cfg["depth"]
+        self._game = Game(cfg["n"], cfg["k"], "X", "O")
+        self._active = True
         self._last_move = None
         self._build_board(cfg["n"])
         self.root.title(f"Tic-Tac-Toe AI  |  {cfg['n']}x{cfg['n']}  k={cfg['k']}")
@@ -248,7 +270,7 @@ class TicTacToeGUI:
             f"You are {self._human}  |  AI is {self._ai_player}  "
             f"|  {cfg['n']}x{cfg['n']} k={cfg['k']} depth={self._depth}  |  Your turn"
         )
-        self.root.deiconify()   # show window (no-op on subsequent calls)
+        self.root.deiconify()  # show window (no-op on subsequent calls)
         self.root.geometry("")  # let tkinter resize to fit the new board
         if self._game.current_player == self._ai_player:
             self.root.after(300, self._do_ai_move)
@@ -323,8 +345,9 @@ class TicTacToeGUI:
 
         # Fill the new cell and add a green outline to mark it as last-placed
         color = PLAYER_COLORS[player]
-        self._canvas.itemconfig(self._rects[(r, c)], fill=color,
-                                outline=LAST_OUTLINE, width=3)
+        self._canvas.itemconfig(
+            self._rects[(r, c)], fill=color, outline=LAST_OUTLINE, width=3
+        )
         self._canvas.itemconfig(self._texts[(r, c)], text=player, fill="white")
         self._last_move = (r, c)
 
@@ -344,7 +367,7 @@ class TicTacToeGUI:
                 self._set_status("AI is thinking...")
 
     def _has_open_4(self, player: str) -> bool:
-        """Return True if player has a run of 4+ marks with at least one open end."""
+        """Return True if player has a run of 4+ marks with BOTH ends open."""
         if self._game is None:
             return False
         board = self._game.board
@@ -368,11 +391,13 @@ class TicTacToeGUI:
                         continue
                     e1r, e1c = r - dr, c - dc
                     e2r, e2c = nr, nc
-                    e1_open = (0 <= e1r < n and 0 <= e1c < n
-                               and board._grid[e1r][e1c] is None)
-                    e2_open = (0 <= e2r < n and 0 <= e2c < n
-                               and board._grid[e2r][e2c] is None)
-                    if e1_open or e2_open:
+                    e1_open = (
+                        0 <= e1r < n and 0 <= e1c < n and board._grid[e1r][e1c] is None
+                    )
+                    e2_open = (
+                        0 <= e2r < n and 0 <= e2c < n and board._grid[e2r][e2c] is None
+                    )
+                    if e1_open and e2_open:
                         return True
         return False
 
@@ -384,8 +409,9 @@ class TicTacToeGUI:
         self._active = False
         if winner:
             for r, c in self._winning_cells(winner):
-                self._canvas.itemconfig(self._rects[(r, c)],
-                                        fill=WIN_COLOR, outline=WIN_COLOR, width=1)
+                self._canvas.itemconfig(
+                    self._rects[(r, c)], fill=WIN_COLOR, outline=WIN_COLOR, width=1
+                )
                 self._canvas.itemconfig(self._texts[(r, c)], fill="white")
             msg = "You win!" if winner == self._human else "AI wins!"
             self._set_status(f"{msg}  ({winner})  --  click New Game to play again")
@@ -399,9 +425,10 @@ class TicTacToeGUI:
             for c in range(n):
                 for dr, dc in [(0, 1), (1, 0), (1, 1), (1, -1)]:
                     cells = [(r + i * dr, c + i * dc) for i in range(k)]
-                    if all(0 <= nr < n and 0 <= nc < n
-                           and board.grid[nr][nc] == player
-                           for nr, nc in cells):
+                    if all(
+                        0 <= nr < n and 0 <= nc < n and board.grid[nr][nc] == player
+                        for nr, nc in cells
+                    ):
                         return cells
         return []
 
@@ -412,6 +439,7 @@ class TicTacToeGUI:
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
+
 
 def main() -> None:
     root = tk.Tk()
