@@ -4,6 +4,27 @@ A generalized n×n, k-in-a-row Tic-Tac-Toe engine with progressively advanced AI
 
 ---
 
+## Running the Project
+
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Play via CLI
+python main.py
+
+# Run all tests
+python -m pytest tests/
+
+# Run benchmarks
+python src/benchmark.py
+
+# Launch GUI
+python src/gui.py
+```
+
+---
+
 ## Project Milestones
 
 ### Milestone 1 — Game Engine ✅
@@ -253,25 +274,4 @@ tic_tac_toe_ai/
 └── report/
     ├── figures/
     └── results/
-```
-
----
-
-## Running the Project
-
-```bash
-# Install dependencies
-pip install -r requirements.txt
-
-# Play via CLI
-python main.py
-
-# Run all tests
-python -m pytest tests/
-
-# Run benchmarks
-python src/benchmark.py
-
-# Launch GUI
-python src/gui.py
 ```
